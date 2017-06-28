@@ -1,13 +1,20 @@
+import mini_crush
+
 namespace hide
 -- *Introducing Inductive Types
 
--- *Proof Terms
+-- **Proof Terms
 #check (fun x : ℕ, x)
 
 #check (fun x : true, x)
 
--- TODO: how to write I?
--- *Enumerations
+#check true.intro
+
+#check (λ _ : false, true.intro)
+
+#check (λ x : false, x)
+
+-- **Enumerations
 
 -- unit
 inductive unit : Type
@@ -16,29 +23,22 @@ inductive unit : Type
 #check unit
 #check unit.tt
 
-theorem unit_singleton_verbose : ∀ x : unit, x = unit.tt :=
-begin
-intro x,
-induction x,
-refl
-end
+theorem unit_singleton_verbose (x : unit) : x = unit.tt :=
+by induction x; refl
 
 theorem unit_singleton_concise : ∀ x : unit, x = unit.tt
 | unit.tt := rfl
 
 -- TODO: is cases_on like unit_ind?
+-- TODO: hovering over #check gives a different type than hovering over the expression itself (which yields the "correct" answer)
 #check unit.cases_on
 
 -- empty
 inductive empty : Type
 
--- TODO: Is this the right way to write this?
 -- TODO: cases vs induction?
-theorem the_sky_is_falling : ∀ x : empty, 2 + 2 = 5 :=
-begin
-intro x,
-induction x
-end
+theorem the_sky_is_falling (x : empty) : 2 + 2 = 5 :=
+by cases x
 
 #check empty.cases_on
 
@@ -55,7 +55,7 @@ def negb : bool → bool
 | bool.true  := bool.false
 | bool.false := bool.true
 
--- TODO: negb' ?
+-- TODO: negb' ? is there a version of ite that works for any type w/ 2 constructors?
 
 -- proof that negb is its own inverse operation
 theorem negb_inverse : ∀ b : bool, negb (negb b) = b
@@ -63,10 +63,10 @@ theorem negb_inverse : ∀ b : bool, negb (negb b) = b
 | bool.false := rfl
 
 -- proof that negb has no fixpoint
--- TODO: prove!
-theorem negb_ineq : ∀ b : bool, negb b ≠ b := sorry
+theorem negb_ineq (b : bool) : negb b ≠ b :=
+by cases b; contradiction
 
--- *Simple Recursive Types
+-- **Simple Recursive Types
 
 -- nat and some functions
 inductive nat : Type
@@ -90,6 +90,9 @@ begin
 simp [plus]
 end
 
+theorem O_plus_n_crush : ∀ n : nat, plus nat.O n = n :=
+by mini_crush
+
 theorem n_plus_O : ∀ n : nat, plus n nat.O = n :=
 begin
 intro n,
@@ -99,11 +102,17 @@ simp [plus],
 rw ih_1
 end
 
+theorem n_plus_O_crush : ∀ n : nat, plus n nat.O = n :=
+by mini_crush
+
 theorem s_inj : ∀ n m : nat, nat.S n = nat.S m → n = m :=
 begin
 intros n m succ_eq,
 injection succ_eq
 end
+
+theorem s_inj_crush : ∀ n m : nat, nat.S n = nat.S m → n = m :=
+by mini_crush
 
 inductive nat_list : Type
 | NNil  : nat_list
@@ -126,6 +135,9 @@ intros,
 induction ls1; simp [nlength, plus, napp],
 rw ih_1
 end
+
+theorem nlength_napp_crush : ∀ ls1 ls2 : nat_list, nlength (napp ls1 ls2) = plus (nlength ls1) (nlength ls2) :=
+by mini_crush
 
 -- binary tree
 inductive nat_btree : Type
@@ -154,7 +166,9 @@ induction tr1; simp [nsize, nsplice],
 simp [ih_1, ih_2, plus_assoc]
 end
 
--- *Parameterized Types
+#check nat_btree.cases_on
+
+-- **Parameterized Types
 -- TODO: is there a way to remove type annotations nearly everywhere ala CPDT p. 50?
 
 universe variable u
@@ -180,7 +194,11 @@ induction ls1; simp [length, plus, app],
 rw ih_1
 end
 
--- *Mutually Inductive Types
+theorem length_app_crush : Π (α : Type u), ∀ ls1 ls2 :
+list α, length (app ls1 ls2) = plus (length ls1) (length ls2) :=
+by mini_crush
+
+-- **Mutually Inductive Types
 
 -- even and odd lists
 mutual inductive even_list, odd_list
@@ -211,9 +229,10 @@ elength (eapp el1 el2) = plus (elength el1) (elength el2) :=
 begin
 intros,
 induction el1; simp [elength, eapp, plus],
+admit
 end
 
--- *Reflexive Types
+-- **Reflexive Types
 
 -- a reflexive type A includes at least one constructor that takes an argument of type B → A
 
@@ -249,42 +268,77 @@ def swapper : formula → formula
 | (formula.And f1 f2) := formula.And (swapper f2) (swapper f1)
 | (formula.Forall f)  := formula.Forall (fun n, swapper (f n))
 
--- TODO?
-theorem Eq_refl : ∀ n1 n2, formula.Eq n1 n2 = formula.Eq n2 n1 := sorry
+theorem swapper_preserves_truth (f : formula) : formulaDenote f → formulaDenote (swapper f) :=
+by mini_crush
+
+#check formula.cases_on
 
 /-
-theorem swapper_preserves_truth : ∀ f, formulaDenote f → formulaDenote (swapper f) :=
-begin
-intros,
-induction f,
--- TODO:
-end
-
 inductive term : Type
 | App : term → term → term
-| Abs : (term → term) → term-/
+| Abs : (term → term) → term
+open term
 
--- *An Interlude on Induction Principles
+def uhoh (t : term) : term
+| (Abs f) := f t
+| _ := t
+-/
 
--- equiv to nat_ind? nat_rect? nat_rec?
-#check nat.cases_on
+-- **An Interlude on Induction Principles
 
--- *Nested Inductive Types
+-- TODO: equiv to nat_ind? nat_rect? nat_rec?
+#check @nat.rec
+#check @nat.cases_on
+
+-- skipping the rest of this section for now
+
+-- **Nested Inductive Types
 
 -- tree with arbitrary finite branching
 inductive nat_tree : Type
 | NNode' : nat → list nat_tree → nat_tree
 
-#check nat_tree.cases_on
+#check nat_tree.rec
 
--- TODO: rest of chapter
+section All
+variable T : Type
+variable P : T → Prop
 
-#print _root_.list.rec
+def All : list T → Prop
+| list.Nil        := true
+| (list.Cons h t) := P h ∧ All t
 
-protected eliminator list.rec :
-Π {T : Type u} {C : list T → Sort l},
-  C list.nil →
-  (Π (a : T) (a_1 : list T), C a_1 → C (a :: a_1)) →
-   Π (n : list T), C n
+end All
+
+#print true
+#print ∧
+#print and
+
+section nat_tree_ind'
+variable P : nat_tree → Prop
+
+-- TODO
+
+end nat_tree_ind'
+
+-- TODO: rest of 3.8
+
+-- **Manual Proofs About Constructors
+
+-- todo
+theorem true_neq_false : tt ≠ ff :=
+begin
+change ¬(tt = ff), -- TODO: replace this with something else?
+change (tt = ff) → false,
+intro H,
+admit -- TODO: need a version of ite that takes any type w/ 2 constructors
+end
+
+theorem S_inj' : ∀ n m : nat, nat.S n = nat.S m → n = m :=
+begin
+intros n m H,
+change (pred (nat.S n) = pred (nat.S m)),
+rw H
+end
 
 end hide
